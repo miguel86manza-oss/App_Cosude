@@ -1,228 +1,235 @@
-import React, { useState, useEffect, useCallback, useRef } from 'react'
-import TopBar from './components/TopBar.jsx'
-import ConfigPanel from './components/ConfigPanel.jsx'
-import PulsoDashboard from './components/PulsoDashboard.jsx'
-import AvanceDashboard from './components/AvanceDashboard.jsx'
-import { fetchAndParseCsv, toCsvUrl } from './lib/csvParser.js'
-import { MOCK_PULSO_ROWS, MOCK_AVANCE_ROWS } from './data/mockData.js'
+import { useEffect, useRef, useState } from 'react';
 
-const LS_KEY = 'adapsys-dashboard-config-v1'
+const SESIONES = {
+  A: {
+    etiqueta: 'Sesión 1',
+    titulo: 'Mirar hacia adentro',
+    descripcion: 'Después de tu autoevaluación: lo que sé y lo que aún no sé de mí.',
+    ayuda:
+      'Transcribe aquí lo que escribiste a mano: tu mapa de lo que te mueve, tu autoevaluación y lo que quisieras explorar. Tal cual, aunque esté desordenado.',
+  },
+  B: {
+    etiqueta: 'Sesión 2',
+    titulo: 'Mirar hacia afuera',
+    descripcion: 'Después de tus escenarios de futuro: continuidad, evolución, reinvención.',
+    ayuda:
+      'Transcribe aquí lo que escribiste a mano: tu capital profesional y tus tres escenarios (qué harías, qué te atrae, qué perderías, qué ganarías…). Tal cual, aunque esté desordenado.',
+  },
+};
 
-function loadConfig() {
-  try {
-    const raw = localStorage.getItem(LS_KEY)
-    if (!raw) return null
-    return JSON.parse(raw)
-  } catch { return null }
-}
-
-function saveConfig(cfg) {
-  try { localStorage.setItem(LS_KEY, JSON.stringify(cfg)) } catch {}
-}
+const MENSAJE_CIERRE = 'Me gustaría ir cerrando esta conversación.';
 
 export default function App() {
-  const params   = new URLSearchParams(window.location.search)
-  const isAdmin  = params.has('admin')
-  const saved    = loadConfig() || {}
+  const [modulo, setModulo] = useState(null);
+  const [messages, setMessages] = useState([]);
 
-  // Config — los parámetros de URL tienen prioridad sobre localStorage
-  const [urlPulso,  setUrlPulso]  = useState(params.get('pulso')  || saved.urlPulso  || '')
-  const [urlAvance, setUrlAvance] = useState(params.get('avance') || saved.urlAvance || '')
-  const [companyName, setCompanyName] = useState(params.get('company') || saved.companyName || '')
-  const [logoUrl, setLogoUrl] = useState(params.get('logo')    || saved.logoUrl    || '')
+  const reiniciar = () => {
+    if (messages.length && !confirm('Se borrará esta conversación de la pantalla. ¿Continuar?')) return;
+    setMessages([]);
+    setModulo(null);
+  };
 
-  // Data
-  const [pulsoRows,  setPulsoRows]  = useState(MOCK_PULSO_ROWS)
-  const [avanceRows, setAvanceRows] = useState(MOCK_AVANCE_ROWS)
-  const [isDemo, setIsDemo] = useState(true)
-
-  // UI state
-  const [tab, setTab] = useState('pulso')  // 'pulso' | 'avance'
-  const [loading, setLoading] = useState(false)
-  const [status, setStatus] = useState('')
-  const [statusType, setStatusType] = useState('')  // '' | 'ok' | 'error'
-  const [lastUpdated, setLastUpdated] = useState(null)
-
-  const connectRef = useRef(null)
-  const isDemoRef  = useRef(isDemo)
-  useEffect(() => { isDemoRef.current = isDemo }, [isDemo])
-
-  // Persistir config
+  // Aviso si la persona intenta cerrar o recargar la pestaña en medio de la conversación.
   useEffect(() => {
-    saveConfig({ urlPulso, urlAvance, companyName, logoUrl })
-  }, [urlPulso, urlAvance, companyName, logoUrl])
-
-  // Conectar a los sheets
-  const handleConnect = useCallback(async () => {
-    if (!urlPulso && !urlAvance) {
-      setStatus('Ingresá al menos una de las dos URLs.')
-      setStatusType('error')
-      return
-    }
-    setLoading(true)
-    setStatus('Descargando datos de los Sheets…')
-    setStatusType('')
-
-    const results = { pulso: null, avance: null, errors: [] }
-
-    if (urlPulso) {
-      const csvUrl = toCsvUrl(urlPulso)
-      if (!csvUrl) {
-        results.errors.push('Pulso: URL no reconocida.')
-      } else {
-        try {
-          const { rows, meta } = await fetchAndParseCsv(csvUrl, 'pulso')
-          results.pulso = rows
-          results.pulsoMeta = meta
-        } catch (e) {
-          results.errors.push(`Pulso: ${e.message}`)
-        }
-      }
-    }
-
-    if (urlAvance) {
-      const csvUrl = toCsvUrl(urlAvance)
-      if (!csvUrl) {
-        results.errors.push('Avance: URL no reconocida.')
-      } else {
-        try {
-          const { rows, meta } = await fetchAndParseCsv(csvUrl, 'avance')
-          results.avance = rows
-          results.avanceMeta = meta
-        } catch (e) {
-          results.errors.push(`Avance: ${e.message}`)
-        }
-      }
-    }
-
-    // Aplicar lo que haya venido
-    let anyOk = false
-    if (results.pulso) {
-      setPulsoRows(results.pulso.length ? results.pulso : [])
-      anyOk = true
-    }
-    if (results.avance) {
-      setAvanceRows(results.avance.length ? results.avance : [])
-      anyOk = true
-    }
-
-    if (anyOk) setIsDemo(false)
-
-    const now = new Date()
-    const timeStr = now.toLocaleTimeString('es-AR', { hour: '2-digit', minute: '2-digit' })
-
-    if (results.errors.length > 0) {
-      setStatus('Algunos Sheets no pudieron cargarse: ' + results.errors.join(' · '))
-      setStatusType(anyOk ? '' : 'error')
-    } else {
-      const p = results.pulso?.length || 0
-      const a = results.avance?.length || 0
-      if (p === 0 && a === 0) {
-        const pm = results.pulsoMeta
-        const am = results.avanceMeta
-        const diag = []
-        if (pm) diag.push(`Pulso → encabezado fila ${pm.headerRowIdx}, preguntas: ${pm.questionsFound}/${pm.questionsTotal}, timestamp col ${pm.tsCol}: "${pm.firstTsValue}", primer valor de respuesta: "${pm.firstQValue}"`)
-        if (am) diag.push(`Avance → encabezado fila ${am.headerRowIdx}, objetivos: ${am.questionsFound}/${am.questionsTotal}, timestamp col ${am.tsCol}: "${am.firstTsValue}", primer valor de respuesta: "${am.firstQValue}"`)
-        setStatus('Conectado pero sin filas válidas. ' + diag.join(' | '))
-        setStatusType('error')
-      } else {
-        setStatus(`Conectado. Pulso: ${p} respuestas · Avance: ${a} respuestas. Última actualización: ${timeStr}`)
-        setStatusType('ok')
-      }
-    }
-
-    if (anyOk) setLastUpdated(now)
-    setLoading(false)
-  }, [urlPulso, urlAvance])
-
-  // Mantener ref actualizada para el intervalo
-  useEffect(() => { connectRef.current = handleConnect }, [handleConnect])
-
-  // Auto-refresh cada 60 s cuando hay datos en vivo
-  useEffect(() => {
-    const id = setInterval(() => {
-      if (!isDemoRef.current) connectRef.current?.()
-    }, 60_000)
-    return () => clearInterval(id)
-  }, [])
-
-  // Vista pública: carga automática al abrir si hay URLs guardadas
-  useEffect(() => {
-    if (!isAdmin && (urlPulso || urlAvance)) {
-      handleConnect()
-    }
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [])
-
-
-  const handleReset = () => {
-    setPulsoRows(MOCK_PULSO_ROWS)
-    setAvanceRows(MOCK_AVANCE_ROWS)
-    setIsDemo(true)
-    setStatus('Volviste al modo demo con datos de ejemplo.')
-    setStatusType('')
-  }
+    if (!messages.length) return;
+    const h = (e) => { e.preventDefault(); e.returnValue = ''; };
+    window.addEventListener('beforeunload', h);
+    return () => window.removeEventListener('beforeunload', h);
+  }, [messages.length]);
 
   return (
-    <main className="app">
-      <TopBar
-        companyName={companyName || (isDemo ? 'Cliente de ejemplo' : 'Cliente')}
-        logoUrl={logoUrl}
-        isDemo={isDemo}
-      />
-
-      {isAdmin && (
-        <ConfigPanel
-          urlPulso={urlPulso}
-          urlAvance={urlAvance}
-          companyName={companyName}
-          logoUrl={logoUrl}
-          onChangeUrlPulso={setUrlPulso}
-          onChangeUrlAvance={setUrlAvance}
-          onChangeCompany={setCompanyName}
-          onChangeLogo={setLogoUrl}
-          onConnect={handleConnect}
-          onReset={handleReset}
-          loading={loading}
-          status={status}
-          statusType={statusType}
-        />
-      )}
-
-      <div className="tabs" role="tablist">
-        <button
-          className={`tab ${tab === 'pulso' ? 'active pulso' : ''}`}
-          onClick={() => setTab('pulso')}
-          role="tab" aria-selected={tab === 'pulso'}
-        >
-          Pulso de Coalición
+    <div className="app">
+      <header className="top">
+        <button className="marca" onClick={reiniciar} aria-label="Volver al inicio">
+          adapsys<span className="cursor">_</span>
         </button>
-        <button
-          className={`tab ${tab === 'avance' ? 'active avance' : ''}`}
-          onClick={() => setTab('avance')}
-          role="tab" aria-selected={tab === 'avance'}
-        >
-          Avance de Objetivos
-        </button>
-      </div>
+        {modulo && (
+          <span className="chip">
+            {SESIONES[modulo].etiqueta} · {SESIONES[modulo].titulo}
+          </span>
+        )}
+      </header>
 
-      <div className="dash" key={tab}>
-        {tab === 'pulso'
-          ? <PulsoDashboard rows={pulsoRows} isDemo={isDemo} />
-          : <AvanceDashboard rows={avanceRows} isDemo={isDemo} />
-        }
-      </div>
+      <main className="main">
+        {!modulo && <Inicio onElegir={setModulo} />}
+        {modulo && messages.length === 0 && (
+          <Hojas sesion={SESIONES[modulo]} onVolver={() => setModulo(null)}
+            onEnviar={(texto) => setMessages([{ role: 'user', content: texto }])} />
+        )}
+        {modulo && messages.length > 0 && (
+          <Chat modulo={modulo} messages={messages} setMessages={setMessages} onNueva={reiniciar} />
+        )}
+      </main>
 
-      <footer className="footer">
-        <div className="footer__brand">
-          <span className="dot-t" />
-          <span className="dot-m" />
-          Adapsys · Tablero de Cambio
-        </div>
-        <div>
-          Construido con React, Vite y Recharts. Datos leídos directamente desde Google Sheets.
-        </div>
+      <footer className="pie">
+        Nada de lo que escribes se guarda: la conversación existe solo en esta pantalla.
       </footer>
-    </main>
-  )
+    </div>
+  );
+}
+
+function Inicio({ onElegir }) {
+  return (
+    <section className="inicio">
+      <p className="kicker">Sesiones sobre el futuro · COSUDE</p>
+      <h1>Un espacio para pensar en voz alta<span className="cursor">_</span></h1>
+      <p className="lead">
+        Pega lo que escribiste a mano y conversa con un acompañante de reflexión. No te va a decir qué
+        hacer: te va a hacer preguntas sobre lo que tú escribiste.
+      </p>
+      <div className="tarjetas">
+        {Object.entries(SESIONES).map(([k, s]) => (
+          <button key={k} className="tarjeta" onClick={() => onElegir(k)}>
+            <span className="tarjeta-etq">{s.etiqueta}</span>
+            <span className="tarjeta-tit">{s.titulo}</span>
+            <span className="tarjeta-desc">{s.descripcion}</span>
+            <span className="tarjeta-cta">Comenzar →</span>
+          </button>
+        ))}
+      </div>
+    </section>
+  );
+}
+
+function Hojas({ sesion, onVolver, onEnviar }) {
+  const [texto, setTexto] = useState('');
+  const listo = texto.trim().length >= 40;
+  return (
+    <section className="hojas">
+      <button className="link" onClick={onVolver}>← Cambiar sesión</button>
+      <h2>Tus hojas</h2>
+      <p className="lead">{sesion.ayuda}</p>
+      <textarea
+        className="area"
+        value={texto}
+        onChange={(e) => setTexto(e.target.value)}
+        placeholder="Escribe o pega aquí tus 2-3 hojas…"
+        autoFocus
+      />
+      <div className="acciones">
+        <span className="nota">{listo ? 'Cuando estés listo/a, comienza.' : 'Escribe al menos unas líneas para comenzar.'}</span>
+        <button className="btn" disabled={!listo}
+          onClick={() => onEnviar(`Estas son mis hojas:\n\n${texto.trim()}`)}>
+          Comenzar conversación
+        </button>
+      </div>
+    </section>
+  );
+}
+
+function Chat({ modulo, messages, setMessages, onNueva }) {
+  const [input, setInput] = useState('');
+  const [cargando, setCargando] = useState(false);
+  const [error, setError] = useState('');
+  const finRef = useRef(null);
+  const enVuelo = useRef(false);
+  const pendiente = messages[messages.length - 1]?.role === 'user';
+
+  // Pide respuesta cada vez que el último mensaje es de la persona.
+  useEffect(() => {
+    if (!pendiente || cargando || error) return;
+    pedir(messages);
+  }, [messages, pendiente]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  useEffect(() => {
+    finRef.current?.scrollIntoView({ behavior: 'smooth' });
+  }, [messages, cargando, error]);
+
+  async function pedir(historial) {
+    if (enVuelo.current) return;
+    enVuelo.current = true;
+    setCargando(true);
+    setError('');
+    try {
+      const r = await fetch('/api/chat', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ modulo, messages: historial }),
+      });
+      const data = await r.json().catch(() => ({}));
+      if (!r.ok || !data.reply) throw new Error(data.error || 'No pudimos obtener respuesta.');
+      setMessages([...historial, { role: 'assistant', content: data.reply }]);
+    } catch (e) {
+      setError(e.message || 'Problema de conexión.');
+    } finally {
+      enVuelo.current = false;
+      setCargando(false);
+    }
+  }
+
+  function enviar(texto) {
+    const t = texto.trim();
+    if (!t || cargando || pendiente) return;
+    setInput('');
+    setMessages([...messages, { role: 'user', content: t }]);
+  }
+
+  function descargar() {
+    const txt = messages
+      .map((m) => `${m.role === 'user' ? 'Yo' : 'Acompañante'}:\n${m.content}`)
+      .join('\n\n---\n\n');
+    const a = document.createElement('a');
+    a.href = URL.createObjectURL(new Blob([txt], { type: 'text/plain;charset=utf-8' }));
+    a.download = `mi-reflexion-sesion-${modulo === 'A' ? '1' : '2'}.txt`;
+    a.click();
+    URL.revokeObjectURL(a.href);
+  }
+
+  const intercambios = messages.filter((m) => m.role === 'user').length;
+
+  return (
+    <section className="chat">
+      <div className="mensajes">
+        {messages.map((m, i) => (
+          <div key={i} className={`msg ${m.role}`}>
+            {i === 0 ? <Plegable texto={m.content} /> : m.content}
+          </div>
+        ))}
+        {cargando && <div className="msg assistant pensando"><span /><span /><span /></div>}
+        {error && (
+          <div className="error">
+            {error}
+            <button className="link" onClick={() => pedir(messages)}>Reintentar</button>
+          </div>
+        )}
+        <div ref={finRef} />
+      </div>
+
+      <form className="entrada" onSubmit={(e) => { e.preventDefault(); enviar(input); }}>
+        <textarea
+          value={input}
+          onChange={(e) => setInput(e.target.value)}
+          onKeyDown={(e) => {
+            if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); enviar(input); }
+          }}
+          placeholder="Escribe tu respuesta…  (Enter para enviar, Shift+Enter para salto de línea)"
+          rows={2}
+          disabled={cargando || pendiente}
+        />
+        <button className="btn" disabled={!input.trim() || cargando || pendiente}>Enviar</button>
+      </form>
+
+      <div className="herramientas">
+        {intercambios >= 3 && (
+          <button className="link" disabled={cargando || pendiente} onClick={() => enviar(MENSAJE_CIERRE)}>
+            Quiero ir cerrando
+          </button>
+        )}
+        <button className="link" onClick={descargar}>Descargar mi conversación</button>
+        <button className="link" onClick={onNueva}>Terminar y borrar</button>
+      </div>
+    </section>
+  );
+}
+
+function Plegable({ texto }) {
+  const [abierto, setAbierto] = useState(false);
+  return (
+    <div>
+      <button className="link claro" onClick={() => setAbierto(!abierto)}>
+        {abierto ? 'Ocultar mis hojas' : 'Mis hojas (ver)'}
+      </button>
+      {abierto && <div className="hojas-texto">{texto.replace(/^Estas son mis hojas:\n\n/, '')}</div>}
+    </div>
+  );
 }

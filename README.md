@@ -1,79 +1,33 @@
-# Adapsys · Generador de Propuestas + Tablero de Indicadores
+# App COSUDE · Sesiones sobre el futuro
 
-Repositorio con **dos entregables independientes**:
+Mini-app sin login para las sesiones del 1 y 2 de diciembre. El participante elige la sesión,
+pega lo que escribió a mano y conversa con un "acompañante de reflexión" (Gemini) que sigue la
+pauta de Adapsys. **No se guarda nada**: no hay base de datos y la conversación vive solo en el navegador.
 
-1. **Generador de propuestas (PDF)** — pipeline Python que arma una propuesta
-   de consultoría fiel a la identidad visual de Adapsys (portada, separadores
-   de sección, contexto, sello metodológico, plan de trabajo y casos de éxito).
-2. **Tablero de indicadores (web)** — app React/Vite que replica el dashboard
-   de la lámina "Ejemplo tablero de indicadores" (Pulso de Coalición y Avance
-   de Objetivos), leyendo datos desde Google Sheets.
-
----
-
-## 1) Generador de propuestas
-
-### Flujo
+## Estructura
 ```
-minuta (notas/correo)
-   --> prompt "Estructurador de Propuestas Adapsys"  -->  propuesta.json
-                                                            --> orchestrator.py
-                                                                  --> propuesta_generada.pdf
-```
-El JSON usa exactamente el esquema del prompt (`cliente`, `desafio_tecnico`,
-`desafio_adaptativo`, `alcance`, `intro_metodologia`, `metodo1..3`,
-`modulo1..5`) y se le agrega un bloque `casos` (lista) y metadatos de portada
-(`titulo_propuesta`, `fecha`, `subtitulo_plan`).
-
-### Estructura
-```
-orchestrator.py        # arma la secuencia de laminas, numera paginas y exporta el PDF
-example_propuesta.json # datos de ejemplo (Casaideas) - copia el formato
-assets/
-  styles.css           # identidad de marca Adapsys (paleta, tipografia, motivos)
-templates/
-  00_portada.html      # portada + lamina "Propuesta + titulo"
-  _divider.html        # separador de seccion (gradiente teal + cursor "_")
-  contexto.html
-  sello_metodologico.html
-  plan_trabajo.html
-  caso.html            # se renderiza una lamina por cada caso de exito
+api/_prompt.js   ← la pauta (system prompt). Editar aquí para ajustar tono/reglas.
+api/chat.js      ← función serverless de Vercel que llama a Gemini
+src/App.jsx      ← interfaz: inicio → hojas → conversación
 ```
 
-### Identidad visual (alineada al deck)
-- Pagina **widescreen 16:9** (338.667 x 190.5 mm), como las laminas reales.
-- Paleta exacta: teal #006278, cian #00B8B8, rosa #C20C5B, off-white #F4F4F4.
-- Tipografia **Poppins**.
-- Motivos de marca: wordmark **ADAPSYS** (con A=Lambda), grilla de puntos,
-  aros rosados y el cursor "_" de los titulos de seccion.
+## Desplegar en Vercel
+1. Crear una API key en https://aistudio.google.com/apikey
+   - **Importante:** activar facturación (plan pagado) en ese proyecto de Google Cloud.
+     En el plan gratuito Google puede usar el contenido para mejorar sus productos;
+     en el pagado no. El costo para ~12 personas × 2 sesiones es de centavos de dólar.
+2. En Vercel: *Add New → Project* → importar `App_Cosude` (framework Vite, se detecta solo).
+3. *Settings → Environment Variables*:
+   - `GEMINI_API_KEY` = la clave
+   - `GEMINI_MODEL` (opcional) = por defecto `gemini-2.5-flash`
+4. Deploy. Cada `git push` a `main` vuelve a desplegar.
 
-### Uso
+## Probar en local
 ```bash
-pip install -r requirements.txt
-python orchestrator.py                          # usa los datos de ejemplo
-python orchestrator.py example_propuesta.json   # carga una propuesta desde JSON
-```
-Genera `propuesta_generada.pdf` en la raiz. (En Google Colab, WeasyPrint corre
-sin configuracion extra.)
-
-### Personalizacion
-- **Contenido:** edita el JSON o `DEFAULT_DATA` en `orchestrator.py`.
-- **Secciones:** agrega/quita pasos en `build_sequence()`.
-- **Estilo:** ajusta los tokens de color en `:root` dentro de `assets/styles.css`.
-- **Casos de exito:** suma objetos al arreglo `casos` (uno = una lamina).
-
----
-
-## 2) Tablero de indicadores (React)
-
-App Vite separada del generador de PDF.
-```bash
+echo "GEMINI_API_KEY=tu_clave" > .env.local
 npm install
 npm run dev
 ```
-Ver `src/` (componentes de Pulso de Coalicion y Avance de Objetivos).
 
----
-
-## Licencia
-MIT.
+## Plan B en sala
+Si falla el wifi: llevar impresa la pauta de preguntas (Opción A) para que el facilitador la use.
