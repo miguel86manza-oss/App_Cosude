@@ -69,7 +69,7 @@ export default function App() {
         </button>
         {modulo && (
           <span className="chip">
-            {SESIONES[modulo].etiqueta} · {SESIONES[modulo].titulo}
+            {SESIONES[modulo].etiqueta}<span className="chip-tit"> · {SESIONES[modulo].titulo}</span>
           </span>
         )}
       </header>
