@@ -216,3 +216,12 @@ h2 { font-size: clamp(24px, 3vw, 30px); margin: 12px 0 8px; color: var(--turques
   .herramientas { gap: 2px 18px; }
   .herramientas .link { min-height: 44px; }
 }
+
+/* Botón de cierre: visible siempre, el facilitador indica cuándo tocarlo */
+.btn-cerrar {
+  background: var(--blanco); color: var(--magenta-2); border: 2px solid var(--magenta-1); border-radius: 99px;
+  padding: 10px 22px; font-weight: 600; font-size: 15px; min-height: 44px;
+}
+.herramientas { align-items: center; }
+@media (hover: hover) { .btn-cerrar:not(:disabled):hover { background: #fdeaf3; } }
+@media (max-width: 600px) { .btn-cerrar { width: 100%; margin-bottom: 4px; } }

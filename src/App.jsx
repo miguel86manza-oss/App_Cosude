@@ -15,7 +15,8 @@ const SESIONES = {
   },
 };
 
-const MENSAJE_CIERRE = 'Me gustaría ir cerrando esta conversación.';
+// Lo envía el botón "Cerrar conversación" cuando el facilitador indica que terminó el tiempo.
+const MENSAJE_CIERRE = 'Se nos acabó el tiempo. Ayúdame a cerrar: ¿con qué me quedo de lo que escribí y conversamos?';
 const MAX_FOTOS = 4;
 
 const nuevoId = () =>
@@ -88,7 +89,7 @@ function ComoFunciona({ onSeguir }) {
     ['Elige tu sesión', 'La 1 o la 2, según el ejercicio que acabas de hacer en papel.'],
     ['Saca una foto a tus hojas', 'Con tu celular, una foto por hoja. Si prefieres, también puedes escribirlas.'],
     ['Conversa', 'Un acompañante te hará preguntas sobre lo que escribiste. No te dice qué hacer: te ayuda a pensar.'],
-    ['Cierra', 'En unos 20 minutos te invitará a quedarte con una frase. Si quieres, descargas la conversación.'],
+    ['Cierra', 'Cuando el facilitador lo indique, toca "Cerrar conversación". Te dejará un resumen y una pregunta para llevarte.'],
   ];
   return (
     <section className="intro">
@@ -339,7 +340,7 @@ function Chat({ modulo, conversacion, fotos, messages, setMessages, onNueva }) {
     URL.revokeObjectURL(a.href);
   }
 
-  const intercambios = messages.filter((m) => m.role === 'user').length;
+  const cerrada = messages.some((m) => m.role === 'user' && m.content === MENSAJE_CIERRE);
 
   return (
     <section className="chat">
@@ -374,9 +375,9 @@ function Chat({ modulo, conversacion, fotos, messages, setMessages, onNueva }) {
       </form>
 
       <div className="herramientas">
-        {intercambios >= 3 && (
-          <button className="link" disabled={cargando || pendiente} onClick={() => enviar(MENSAJE_CIERRE)}>
-            Quiero ir cerrando
+        {!cerrada && (
+          <button className="btn-cerrar" disabled={cargando || pendiente} onClick={() => enviar(MENSAJE_CIERRE)}>
+            Cerrar conversación
           </button>
         )}
         <button className="link" onClick={descargar}>Descargar mi conversación</button>

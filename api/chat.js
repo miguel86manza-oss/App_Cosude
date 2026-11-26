@@ -24,7 +24,7 @@ export default async function handler(req, res) {
 
   try {
     const r = await llamarGemini({
-      systemInstruction: { parts: [{ text: buildSystemPrompt(modulo, intercambio) }] },
+      systemInstruction: { parts: [{ text: buildSystemPrompt(modulo) }] },
       contents: messages.map((m) => ({
         role: m.role === 'assistant' ? 'model' : 'user',
         parts: [{ text: m.content }],
