@@ -19,6 +19,9 @@ const SESIONES = {
 const MENSAJE_CIERRE = 'Se nos acabó el tiempo. Ayúdame a cerrar: ¿con qué me quedo de lo que escribí y conversamos?';
 const MAX_FOTOS = 4;
 
+// Por si el modelo usa formato Markdown: viñetas "* " o "- " pasan a "• " y se quitan los ** de negrita.
+const limpiar = (t) => t.replace(/^[ \t]*[*-][ \t]+/gm, '• ').replace(/\*\*(.+?)\*\*/g, '$1');
+
 const nuevoId = () =>
   (crypto.randomUUID?.() || `${Date.now()}-${Math.random().toString(36).slice(2)}`);
 
@@ -347,7 +350,7 @@ function Chat({ modulo, conversacion, fotos, messages, setMessages, onNueva }) {
       <div className="mensajes">
         {messages.map((m, i) => (
           <div key={i} className={`msg ${m.role}`}>
-            {i === 0 ? <Plegable texto={m.content} fotos={fotos} /> : m.content}
+            {i === 0 ? <Plegable texto={m.content} fotos={fotos} /> : limpiar(m.content)}
           </div>
         ))}
         {cargando && <div className="msg assistant pensando"><span /><span /><span /></div>}
