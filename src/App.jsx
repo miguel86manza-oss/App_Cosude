@@ -65,7 +65,7 @@ export default function App() {
     <div className="app">
       <header className="top">
         <button className="marca" onClick={reiniciar} aria-label="Volver al inicio">
-          adapsys<span className="cursor">_</span>
+          Adapsys<span className="cursor">_</span>
         </button>
         {modulo && (
           <span className="chip">
